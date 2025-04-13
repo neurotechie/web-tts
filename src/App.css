@@ -1,73 +1,55 @@
 .App {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 20px;
-  font-family: sans-serif;
-}
-
-h1 {
-  margin-bottom: 20px;
-}
-
-textarea {
   width: 100%;
-  max-width: 600px;
-  padding: 10px;
-  margin-bottom: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 16px;
+  min-height: 100vh;
+  padding: 1rem;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
-button {
-  padding: 10px 20px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
+/* Mobile first - card takes full width */
+.ant-card {
+  width: 100%;
+  margin: 0 auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
+/* Tablet and above - centered with max width */
+@media (min-width: 768px) {
+  .App {
+    padding: 2rem;
+  }
+
+  .ant-card {
+    max-width: 800px;
+  }
+}
+
+.ant-space {
+  width: 100%;
+}
+
+.ant-input-textarea {
+  margin: 0.75rem 0;
 }
 
 audio {
-  margin-top: 20px;
+  width: 100%;
+  margin: 0.75rem 0;
 }
 
-a {
-  margin-left: 10px;
-  color: #007bff;
-  text-decoration: none;
+/* Ensure consistent spacing on mobile */
+.ant-space-vertical > .ant-space-item {
+  margin-bottom: 0.75rem !important;
 }
 
-.loading-spinner {
-  margin: 20px auto;
-  width: 50px;
-  height: 50px;
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid #007bff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.ant-progress {
+  margin: 0.5rem 0;
 }
 
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+.ant-select {
+  width: 100%;
 }
 
-.loading-text {
-  margin-top: 10px;
-  font-size: 18px;
-  text-align: center;
+.ant-typography {
+  margin-bottom: 1rem;
 }

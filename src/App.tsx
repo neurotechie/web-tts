@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { KokoroTTS } from "kokoro-js";
 import { WaveFile } from "wavefile";
+import { Typography, Select, Input, Button, Progress, Card, Space } from "antd";
 import "./App.css";
+import "antd/dist/reset.css";
 
+const { Title } = Typography;
+const { TextArea } = Input;
 interface TTSError extends Error {
   message: string;
 }
@@ -50,6 +54,7 @@ function App() {
     {
       language: "American English",
       name: "af_heart",
+      displayName: "Sarah (American)",
       traits: "🚺❤️",
       targetQuality: "A",
       trainingDuration: "",
@@ -58,6 +63,7 @@ function App() {
     {
       language: "American English",
       name: "af_alloy",
+      displayName: "Emily (American)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -66,6 +72,7 @@ function App() {
     {
       language: "American English",
       name: "af_aoede",
+      displayName: "Madison (American)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -74,6 +81,7 @@ function App() {
     {
       language: "American English",
       name: "af_bella",
+      displayName: "Bella (American)",
       traits: "🚺🔥",
       targetQuality: "A",
       trainingDuration: "HH hours",
@@ -82,6 +90,7 @@ function App() {
     {
       language: "American English",
       name: "af_jessica",
+      displayName: "Jessica (American)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -90,6 +99,7 @@ function App() {
     {
       language: "American English",
       name: "af_kore",
+      displayName: "Kora (American)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -98,6 +108,7 @@ function App() {
     {
       language: "American English",
       name: "af_nicole",
+      displayName: "Nicole (American)",
       traits: "🚺🎧",
       targetQuality: "B",
       trainingDuration: "HH hours",
@@ -106,6 +117,7 @@ function App() {
     {
       language: "American English",
       name: "af_nova",
+      displayName: "Nova (American)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -114,6 +126,7 @@ function App() {
     {
       language: "American English",
       name: "af_river",
+      displayName: "River (American)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -122,6 +135,7 @@ function App() {
     {
       language: "American English",
       name: "af_sarah",
+      displayName: "Laura (American)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -130,6 +144,7 @@ function App() {
     {
       language: "American English",
       name: "af_sky",
+      displayName: "Skylar (American)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "M minutes 🤏",
@@ -138,6 +153,7 @@ function App() {
     {
       language: "American English",
       name: "am_adam",
+      displayName: "Adam (American)",
       traits: "🚹",
       targetQuality: "D",
       trainingDuration: "H hours",
@@ -146,6 +162,7 @@ function App() {
     {
       language: "American English",
       name: "am_echo",
+      displayName: "Ethan (American)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -154,6 +171,7 @@ function App() {
     {
       language: "American English",
       name: "am_eric",
+      displayName: "Eric (American)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -162,6 +180,7 @@ function App() {
     {
       language: "American English",
       name: "am_fenrir",
+      displayName: "Felix (American)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -170,6 +189,7 @@ function App() {
     {
       language: "American English",
       name: "am_liam",
+      displayName: "Liam (American)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -178,6 +198,7 @@ function App() {
     {
       language: "American English",
       name: "am_michael",
+      displayName: "Michael (American)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -186,6 +207,7 @@ function App() {
     {
       language: "American English",
       name: "am_onyx",
+      displayName: "Oliver (American)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -194,6 +216,7 @@ function App() {
     {
       language: "American English",
       name: "am_puck",
+      displayName: "Peter (American)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -202,6 +225,7 @@ function App() {
     {
       language: "American English",
       name: "am_santa",
+      displayName: "Nick (American)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "M minutes 🤏",
@@ -210,6 +234,7 @@ function App() {
     {
       language: "British English",
       name: "bf_alice",
+      displayName: "Alice (British)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -218,6 +243,7 @@ function App() {
     {
       language: "British English",
       name: "bf_emma",
+      displayName: "Emma (British)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "HH hours",
@@ -226,6 +252,7 @@ function App() {
     {
       language: "British English",
       name: "bf_isabella",
+      displayName: "Isabella (British)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -234,6 +261,7 @@ function App() {
     {
       language: "British English",
       name: "bf_lily",
+      displayName: "Lily (British)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -242,6 +270,7 @@ function App() {
     {
       language: "British English",
       name: "bm_daniel",
+      displayName: "Daniel (British)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -250,6 +279,7 @@ function App() {
     {
       language: "British English",
       name: "bm_fable",
+      displayName: "Frederick (British)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -258,6 +288,7 @@ function App() {
     {
       language: "British English",
       name: "bm_george",
+      displayName: "George (British)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -266,6 +297,7 @@ function App() {
     {
       language: "British English",
       name: "bm_lewis",
+      displayName: "Lewis (British)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "H hours",
@@ -389,67 +421,107 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Text-to-Speech Generator</h1>
+      <Card bordered={false}>
+        <Space
+          direction="vertical"
+          size="middle"
+          style={{ width: "100%", gap: "16px" }}
+        >
+          <Title level={2} style={{ textAlign: "center", margin: 0 }}>
+            Neuro TTS
+          </Title>
 
-      {/* Model Loading Progress */}
-      {(isLoading || !tts) && (
-        <div className="progress-bar-container">
-          <label>
-            {modelLoadingProgress < 0.9
-              ? "Downloading Model: "
-              : modelLoadingProgress < 1
-              ? "Initializing Model: "
-              : "Finalizing: "}
-            {Math.min(100, Math.round(modelLoadingProgress * 100))}%
-          </label>
-          <progress
-            value={Math.min(1, modelLoadingProgress)}
-            max="1"
-          ></progress>
-        </div>
-      )}
+          {/* Model Loading Progress */}
+          {(isLoading || !tts) && (
+            <div style={{ width: "100%" }}>
+              <Typography.Text
+                style={{ display: "block", marginBottom: "8px" }}
+              >
+                {modelLoadingProgress < 0.9
+                  ? "Downloading Model"
+                  : modelLoadingProgress < 1
+                  ? "Initializing Model"
+                  : "Finalizing"}
+              </Typography.Text>
+              <Progress
+                percent={Math.min(100, Math.round(modelLoadingProgress * 100))}
+                status="active"
+                size="small"
+              />
+            </div>
+          )}
 
-      <select value={selectedVoice} onChange={handleVoiceChange}>
-        {voiceData
-          .filter((voice) =>
-            ["A", "B", "C"].includes(voice.overallGrade.charAt(0))
-          )
-          .map((voice) => (
-            <option key={voice.name} value={voice.name}>
-              {voice.name} - {voice.traits.includes("🚺") ? "Female" : "Male"} (
-              {voice.language})
-            </option>
-          ))}
-      </select>
-      <textarea
-        rows={10}
-        cols={50}
-        value={inputText}
-        onChange={handleInputChange}
-        placeholder="Enter text to convert to speech..."
-      />
-      <button onClick={generateTTS} disabled={isLoading || !tts}>
-        {isLoading ? "Generating..." : tts ? "Generate" : "Loading Model..."}
-      </button>
+          <Select
+            value={selectedVoice}
+            onChange={(value) => setSelectedVoice(value as VoiceOption)}
+            style={{ width: "100%" }}
+          >
+            {voiceData
+              .filter((voice) =>
+                ["A", "B", "C"].includes(voice.overallGrade.charAt(0))
+              )
+              .map((voice) => (
+                <Select.Option key={voice.name} value={voice.name}>
+                  {voice.displayName}
+                </Select.Option>
+              ))}
+          </Select>
 
-      {/* Generation Progress */}
-      {isLoading && generationProgress > 0 && (
-        <div className="progress-bar-container">
-          <label>
-            Generating Audio: {Math.round(generationProgress * 100)}%
-          </label>
-          <progress value={generationProgress} max="1"></progress>
-        </div>
-      )}
+          <TextArea
+            rows={6}
+            value={inputText}
+            onChange={handleInputChange}
+            placeholder="Enter text to convert to speech..."
+          />
 
-      {audioUrl && (
-        <div>
-          <audio controls src={audioUrl} />
-          <a href={audioUrl} download="tts-output.wav">
-            Download WAV
-          </a>
-        </div>
-      )}
+          <Button
+            type="primary"
+            onClick={generateTTS}
+            disabled={isLoading || !tts}
+            loading={isLoading}
+          >
+            {isLoading
+              ? "Generating..."
+              : tts
+              ? "Generate"
+              : "Loading Model..."}
+          </Button>
+
+          {/* Generation Progress */}
+          {isLoading && generationProgress > 0 && (
+            <div style={{ width: "100%" }}>
+              <Typography.Text
+                style={{ display: "block", marginBottom: "8px" }}
+              >
+                Generating Audio
+              </Typography.Text>
+              <Progress
+                percent={Math.round(generationProgress * 100)}
+                status="active"
+                size="small"
+              />
+            </div>
+          )}
+
+          {audioUrl && (
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <audio
+                controls
+                src={audioUrl}
+                style={{ width: "100%", maxWidth: "100%" }}
+              />
+              <Button
+                type="link"
+                href={audioUrl}
+                download="tts-output.wav"
+                style={{ padding: 0 }}
+              >
+                Download WAV
+              </Button>
+            </Space>
+          )}
+        </Space>
+      </Card>
     </div>
   );
 }
