@@ -54,7 +54,7 @@ function App() {
     {
       language: "American English",
       name: "af_heart",
-      displayName: "Sarah (American)",
+      displayName: "Sarah (American Female)",
       traits: "🚺❤️",
       targetQuality: "A",
       trainingDuration: "",
@@ -63,7 +63,7 @@ function App() {
     {
       language: "American English",
       name: "af_alloy",
-      displayName: "Emily (American)",
+      displayName: "Emily (American Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -72,7 +72,7 @@ function App() {
     {
       language: "American English",
       name: "af_aoede",
-      displayName: "Madison (American)",
+      displayName: "Madison (American Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -81,7 +81,7 @@ function App() {
     {
       language: "American English",
       name: "af_bella",
-      displayName: "Bella (American)",
+      displayName: "Bella (American Female)",
       traits: "🚺🔥",
       targetQuality: "A",
       trainingDuration: "HH hours",
@@ -90,7 +90,7 @@ function App() {
     {
       language: "American English",
       name: "af_jessica",
-      displayName: "Jessica (American)",
+      displayName: "Jessica (American Female)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -99,7 +99,7 @@ function App() {
     {
       language: "American English",
       name: "af_kore",
-      displayName: "Kora (American)",
+      displayName: "Kora (American Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -108,7 +108,7 @@ function App() {
     {
       language: "American English",
       name: "af_nicole",
-      displayName: "Nicole (American)",
+      displayName: "Nicole (American Female)",
       traits: "🚺🎧",
       targetQuality: "B",
       trainingDuration: "HH hours",
@@ -117,7 +117,7 @@ function App() {
     {
       language: "American English",
       name: "af_nova",
-      displayName: "Nova (American)",
+      displayName: "Nova (American Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -126,7 +126,7 @@ function App() {
     {
       language: "American English",
       name: "af_river",
-      displayName: "River (American)",
+      displayName: "River (American Female)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -135,7 +135,7 @@ function App() {
     {
       language: "American English",
       name: "af_sarah",
-      displayName: "Laura (American)",
+      displayName: "Laura (American Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -144,7 +144,7 @@ function App() {
     {
       language: "American English",
       name: "af_sky",
-      displayName: "Skylar (American)",
+      displayName: "Skylar (American Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "M minutes 🤏",
@@ -153,7 +153,7 @@ function App() {
     {
       language: "American English",
       name: "am_adam",
-      displayName: "Adam (American)",
+      displayName: "Adam (American Male)",
       traits: "🚹",
       targetQuality: "D",
       trainingDuration: "H hours",
@@ -162,7 +162,7 @@ function App() {
     {
       language: "American English",
       name: "am_echo",
-      displayName: "Ethan (American)",
+      displayName: "Ethan (American Male)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -171,7 +171,7 @@ function App() {
     {
       language: "American English",
       name: "am_eric",
-      displayName: "Eric (American)",
+      displayName: "Eric (American Male)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -180,7 +180,7 @@ function App() {
     {
       language: "American English",
       name: "am_fenrir",
-      displayName: "Felix (American)",
+      displayName: "Felix (American Male)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -189,7 +189,7 @@ function App() {
     {
       language: "American English",
       name: "am_liam",
-      displayName: "Liam (American)",
+      displayName: "Liam (American Male)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -198,7 +198,7 @@ function App() {
     {
       language: "American English",
       name: "am_michael",
-      displayName: "Michael (American)",
+      displayName: "Michael (American Male)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -207,7 +207,7 @@ function App() {
     {
       language: "American English",
       name: "am_onyx",
-      displayName: "Oliver (American)",
+      displayName: "Oliver (American Male)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -216,7 +216,7 @@ function App() {
     {
       language: "American English",
       name: "am_puck",
-      displayName: "Peter (American)",
+      displayName: "Peter (American Male)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "H hours",
@@ -225,7 +225,7 @@ function App() {
     {
       language: "American English",
       name: "am_santa",
-      displayName: "Nick (American)",
+      displayName: "Nick (American Male)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "M minutes 🤏",
@@ -234,7 +234,7 @@ function App() {
     {
       language: "British English",
       name: "bf_alice",
-      displayName: "Alice (British)",
+      displayName: "Alice (British Female)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -243,7 +243,7 @@ function App() {
     {
       language: "British English",
       name: "bf_emma",
-      displayName: "Emma (British)",
+      displayName: "Emma (British Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "HH hours",
@@ -252,7 +252,7 @@ function App() {
     {
       language: "British English",
       name: "bf_isabella",
-      displayName: "Isabella (British)",
+      displayName: "Isabella (British Female)",
       traits: "🚺",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -261,7 +261,7 @@ function App() {
     {
       language: "British English",
       name: "bf_lily",
-      displayName: "Lily (British)",
+      displayName: "Lily (British Female)",
       traits: "🚺",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -270,7 +270,7 @@ function App() {
     {
       language: "British English",
       name: "bm_daniel",
-      displayName: "Daniel (British)",
+      displayName: "Daniel (British Male)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "MM minutes",
@@ -279,7 +279,7 @@ function App() {
     {
       language: "British English",
       name: "bm_fable",
-      displayName: "Frederick (British)",
+      displayName: "Frederick (British Male)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -288,7 +288,7 @@ function App() {
     {
       language: "British English",
       name: "bm_george",
-      displayName: "George (British)",
+      displayName: "George (British Male)",
       traits: "🚹",
       targetQuality: "B",
       trainingDuration: "MM minutes",
@@ -297,7 +297,7 @@ function App() {
     {
       language: "British English",
       name: "bm_lewis",
-      displayName: "Lewis (British)",
+      displayName: "Lewis (British Male)",
       traits: "🚹",
       targetQuality: "C",
       trainingDuration: "H hours",
@@ -413,10 +413,6 @@ function App() {
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(event.target.value);
-  };
-
-  const handleVoiceChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedVoice(event.target.value as VoiceOption);
   };
 
   return (
