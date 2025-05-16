@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { KokoroTTS } from "kokoro-js";
 import { WaveFile } from "wavefile";
 import {
@@ -22,13 +22,26 @@ interface TTSError extends Error {
   message: string;
 }
 
+// Web Worker
+const createTTSWorker = () => {
+  return new Worker(new URL("./ttsWorker.ts", import.meta.url), {
+    type: "module",
+  });
+};
+
 function App() {
   const [inputText, setInputText] = useState("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [modelLoadingProgress, setModelLoadingProgress] = useState(0);
   const [generationProgress, setGenerationProgress] = useState(0);
-  const [tts, setTts] = useState<KokoroTTS | null>(null);
+  const [ttsReady, setTtsReady] = useState(false);
+  const [progressMessage, setProgressMessage] = useState("");
+  const workerRef = useRef<Worker | null>(null);
+  const audioBuffersRef = useRef<{ [key: number]: Float32Array }>({});
+  const sampleRateRef = useRef<number>(24000);
+  const totalChunksRef = useRef<number>(0);
+  const completedChunksRef = useRef<number>(0);
   const [mode, setMode] = useState<"single" | "multi">("single");
 
   // Warn user if input is very long
@@ -325,53 +338,116 @@ function App() {
   ];
 
   useEffect(() => {
-    async function loadModel() {
-      try {
-        setIsLoading(true);
-        setModelLoadingProgress(0);
-        console.log("Starting model loading...");
-        const model_id = "onnx-community/Kokoro-82M-v1.0-ONNX";
-        const ttsInstance = await KokoroTTS.from_pretrained(model_id, {
-          dtype: "q8", // Options: "fp32", "fp16", "q8", "q4", "q4f16"
-          device: "wasm",
-          progress_callback: (progressInfo) => {
-            console.log("Progress info:", progressInfo);
-            if ("progress" in progressInfo) {
-              // Keep progress at 90% max during download, save last 10% for initialization
-              const progress = Math.min(
-                0.9,
-                Math.max(0, progressInfo.progress || 0)
-              );
-              setModelLoadingProgress(progress);
-            }
-          },
-        });
+    // Initialize the worker
+    const worker = createTTSWorker();
+    workerRef.current = worker;
 
-        // Set progress to 95% during model initialization
-        setModelLoadingProgress(0.95);
-        console.log("Model downloaded, initializing...");
+    // Handle messages from the worker
+    worker.onmessage = (event) => {
+      const data = event.data;
 
-        // Verify the model is working by testing a small generation
-        await ttsInstance.generate("test", { voice: "af_heart" });
+      switch (data.type) {
+        case "progress":
+          if (data.message.includes("Model")) {
+            setModelLoadingProgress(data.progress);
+            setProgressMessage(data.message);
+          } else {
+            setGenerationProgress(data.progress);
+            setProgressMessage(data.message);
+          }
+          break;
+        case "result":
+          // Store audio chunk
+          audioBuffersRef.current[data.chunkIndex] = data.audio;
+          sampleRateRef.current = data.samplingRate;
+          completedChunksRef.current++;
 
-        // Model is fully ready
-        setModelLoadingProgress(1);
-        console.log("Model loaded and initialized successfully");
-        setTts(ttsInstance);
-        setIsLoading(false);
-      } catch (error: unknown) {
-        const ttsError = error as TTSError;
-        const errorMessage = ttsError.message || "Unknown error occurred";
-        console.error("Error loading TTS model:", ttsError);
-        alert(
-          `Failed to load TTS model: ${errorMessage}. Please try refreshing the page.`
-        );
-        setIsLoading(false);
+          // Update progress
+          setGenerationProgress(
+            completedChunksRef.current / totalChunksRef.current
+          );
+
+          // If all chunks are done, concatenate and process
+          if (completedChunksRef.current === totalChunksRef.current) {
+            processCompletedAudio();
+          }
+          break;
+        case "error":
+          console.error("Worker error:", data.message);
+          alert(`Error in TTS processing: ${data.message}`);
+          setIsLoading(false);
+          break;
+        default:
+          console.warn("Unknown message from worker:", data);
       }
-    }
+    };
 
-    loadModel();
+    // Initialize the TTS model in the worker
+    worker.postMessage({
+      type: "init",
+      modelId: "onnx-community/Kokoro-82M-v1.0-ONNX",
+      dtype: "q8",
+      device: "wasm",
+    });
+
+    setIsLoading(true);
+    setProgressMessage("Initializing TTS model...");
+
+    // Clean up worker on component unmount
+    return () => {
+      worker.terminate();
+    };
   }, []);
+
+  // Process completed audio chunks into a single WAV file
+  const processCompletedAudio = useCallback(() => {
+    try {
+      const chunks = Object.values(audioBuffersRef.current);
+
+      // Concatenate all Float32Array audio buffers
+      const totalLength = chunks.reduce((sum, arr) => sum + arr.length, 0);
+      const joined = new Float32Array(totalLength);
+      let offset = 0;
+      for (const arr of chunks) {
+        joined.set(arr, offset);
+        offset += arr.length;
+      }
+
+      // Convert to WAV
+      const outputWav = new WaveFile();
+      outputWav.fromScratch(
+        1,
+        sampleRateRef.current,
+        "16",
+        float32ToInt16(joined)
+      );
+      const wavBuffer = outputWav.toBuffer();
+      const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
+      const wavUrl = URL.createObjectURL(wavBlob);
+      setAudioUrl(wavUrl);
+
+      // Reset for next generation
+      audioBuffersRef.current = {};
+      setIsLoading(false);
+      setGenerationProgress(1);
+    } catch (error: unknown) {
+      const ttsError = error as TTSError;
+      const errorMessage = ttsError.message || "Unknown error occurred";
+      console.error("Error processing audio:", ttsError);
+      alert(
+        `Error processing audio: ${errorMessage}. Please check the console for details.`
+      );
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Update TTS ready state when model loading completes
+  useEffect(() => {
+    if (modelLoadingProgress === 1) {
+      setTtsReady(true);
+      setIsLoading(false);
+    }
+  }, [modelLoadingProgress]);
 
   // Debug logging toggle (set to true to enable logs, false to disable)
   const debugLogs = true;
@@ -457,7 +533,7 @@ function App() {
   const [parseErrors, setParseErrors] = useState<string[]>([]);
 
   const generateTTS = useCallback(async () => {
-    if (!tts) {
+    if (!workerRef.current || !ttsReady) {
       alert("TTS model is still loading. Please wait.");
       return;
     }
@@ -492,41 +568,25 @@ function App() {
         }
       }
       if (debugLogs) console.log("[TTS] All chunks for synthesis:", allChunks);
-      // Phase 3: Synthesize all chunks sequentially and concatenate audio
-      let audioBuffers: Float32Array[] = [];
-      let sampleRate = 24000; // fallback
+
+      // Reset tracking variables
+      audioBuffersRef.current = {};
+      totalChunksRef.current = allChunks.length;
+      completedChunksRef.current = 0;
+
+      // Phase 3: Send chunks to worker for processing
       for (let i = 0; i < allChunks.length; i++) {
-        setGenerationProgress(i / allChunks.length);
         const { voice, text } = allChunks[i];
-        if (debugLogs)
-          console.log(
-            `[TTS] Synthesizing chunk ${i + 1}/${
-              allChunks.length
-            } with voice ${voice}`
-          );
-        const result = await tts.generate(text, { voice });
-        sampleRate = result.sampling_rate;
-        audioBuffers.push(result.audio);
+        workerRef.current.postMessage({
+          type: "generate",
+          text,
+          voice,
+          chunkIndex: i,
+          totalChunks: allChunks.length,
+        });
       }
-      setGenerationProgress(1);
-      // Concatenate all Float32Array audio buffers
-      const totalLength = audioBuffers.reduce(
-        (sum, arr) => sum + arr.length,
-        0
-      );
-      const joined = new Float32Array(totalLength);
-      let offset = 0;
-      for (const arr of audioBuffers) {
-        joined.set(arr, offset);
-        offset += arr.length;
-      }
-      // Convert to WAV
-      const outputWav = new WaveFile();
-      outputWav.fromScratch(1, sampleRate, "16", float32ToInt16(joined));
-      const wavBuffer = outputWav.toBuffer();
-      const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
-      const wavUrl = URL.createObjectURL(wavBlob);
-      setAudioUrl(wavUrl);
+
+      // Processing will continue in worker message handler
     } catch (error: unknown) {
       const ttsError = error as TTSError;
       const errorMessage = ttsError.message || "Unknown error occurred";
@@ -534,10 +594,9 @@ function App() {
       alert(
         `Error generating TTS: ${errorMessage}. Please check the console for details.`
       );
-    } finally {
       setIsLoading(false);
     }
-  }, [inputText, tts, selectedVoice, debugLogs]);
+  }, [inputText, ttsReady, selectedVoice, debugLogs]);
 
   // Helper function to convert Float32 samples to Int16 samples
   const float32ToInt16 = (buffer: Float32Array): Int16Array => {
@@ -577,16 +636,17 @@ function App() {
             <Radio.Button value="multi">Multi-Voice</Radio.Button>
           </Radio.Group>
           {/* Model Loading Progress */}
-          {(isLoading || !tts) && (
+          {(isLoading || !ttsReady) && (
             <div style={{ width: "100%" }}>
               <Typography.Text
                 style={{ display: "block", marginBottom: "8px" }}
               >
-                {modelLoadingProgress < 0.9
-                  ? "Downloading Model"
-                  : modelLoadingProgress < 1
-                  ? "Initializing Model"
-                  : "Finalizing"}
+                {progressMessage ||
+                  (modelLoadingProgress < 0.9
+                    ? "Downloading Model"
+                    : modelLoadingProgress < 1
+                    ? "Initializing Model"
+                    : "Finalizing")}
               </Typography.Text>
               <Progress
                 percent={Math.min(100, Math.round(modelLoadingProgress * 100))}
@@ -755,26 +815,26 @@ function App() {
           <Button
             type="primary"
             onClick={generateTTS}
-            disabled={isLoading || !tts}
+            disabled={isLoading || !ttsReady}
             loading={isLoading}
           >
             {isLoading
               ? "Generating..."
-              : tts
+              : ttsReady
               ? "Generate"
               : "Loading Model..."}
           </Button>
 
           {/* Generation Progress */}
-          {isLoading && (
+          {isLoading && ttsReady && (
             <div style={{ width: "100%" }}>
               <Typography.Text
                 style={{ display: "block", marginBottom: "8px" }}
               >
-                Generating Audio
+                {progressMessage || "Generating Audio"}
               </Typography.Text>
               <Progress
-                percent={Math.round(generationProgress * 100)}
+                percent={Math.min(100, Math.round(generationProgress * 100))}
                 status="active"
                 size="small"
               />
