@@ -6,6 +6,7 @@ type InitMessage = {
   modelId: string;
   dtype: string;
   device: string;
+  isMobile?: boolean; // Flag for mobile optimizations
 };
 
 type GenerateMessage = {
@@ -37,6 +38,8 @@ type ErrorMessage = {
 
 // Main worker code
 let tts: KokoroTTS | null = null;
+let isMobileDevice = false;
+let modelLoaded = false;
 
 // Handle messages from main thread
 self.onmessage = async (event: MessageEvent) => {
@@ -70,11 +73,15 @@ async function initTTS(data: InitMessage) {
     progress: 0,
     message: "Starting model loading",
   } as ProgressMessage);
-
-  tts = await KokoroTTS.from_pretrained(data.modelId, {
-    dtype: data.dtype,
+  
+  // Store mobile status for optimizations
+  isMobileDevice = data.isMobile ?? false;
+  
+  // Different model options for mobile
+  const modelParams = {
+    dtype: isMobileDevice ? "q4" : data.dtype, // Lower precision for mobile
     device: data.device,
-    progress_callback: (progressInfo) => {
+    progress_callback: (progressInfo: any) => {
       if ("progress" in progressInfo) {
         // Keep progress at 90% max during download, save last 10% for initialization
         const progress = Math.min(0.9, Math.max(0, progressInfo.progress || 0));
@@ -85,24 +92,46 @@ async function initTTS(data: InitMessage) {
         } as ProgressMessage);
       }
     },
-  });
+    // Small models for mobile, default chunks for desktop
+    max_chunk_size: isMobileDevice ? 150 : 300,
+    // Enable GC for mobile
+    gc_after_init: isMobileDevice,
+  };
 
-  // Set progress to 95% during model initialization
-  self.postMessage({
-    type: "progress",
-    progress: 0.95,
-    message: "Initializing model",
-  } as ProgressMessage);
+  try {
+    tts = await KokoroTTS.from_pretrained(data.modelId, modelParams);
 
-  // Verify the model is working by testing a small generation
-  await tts.generate("test", { voice: "af_heart" });
+    // Set progress to 95% during model initialization
+    self.postMessage({
+      type: "progress",
+      progress: 0.95,
+      message: "Initializing model",
+    } as ProgressMessage);
 
-  // Model is fully ready
-  self.postMessage({
-    type: "progress",
-    progress: 1,
-    message: "Model loaded successfully",
-  } as ProgressMessage);
+    // Verify the model is working by testing a small generation
+    // Use shorter test input on mobile
+    await tts.generate("test", { voice: "af_heart" });
+
+    // Model is fully ready
+    modelLoaded = true;
+    self.postMessage({
+      type: "progress",
+      progress: 1,
+      message: "Model loaded successfully",
+    } as ProgressMessage);
+  } catch (error) {
+    // Specific mobile error handling
+    if (isMobileDevice) {
+      self.postMessage({
+        type: "error",
+        message: `Mobile device detected. Error loading TTS model: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }. Try using smaller text chunks or refresh the page.`,
+      } as ErrorMessage);
+    } else {
+      throw error; // Let the main catch handle this
+    }
+  }
 }
 
 // Generate TTS for a text chunk
@@ -118,18 +147,37 @@ async function generateTTS(data: GenerateMessage) {
     message: `Generating chunk ${data.chunkIndex + 1}/${data.totalChunks}`,
   } as ProgressMessage);
 
-  // Generate speech
-  const result = await tts.generate(data.text, { voice: data.voice });
+  try {
+    // Mobile-specific optimizations for generation
+    const options = {
+      voice: data.voice,
+      // Use smaller batch sizes on mobile for better memory management
+      batch_size: isMobileDevice ? 4 : 8,
+    };
 
-  // Send result back to main thread
-  self.postMessage(
-    {
-      type: "result",
-      audio: result.audio,
-      samplingRate: result.sampling_rate,
-      chunkIndex: data.chunkIndex,
-      totalChunks: data.totalChunks,
-    } as ResultMessage,
-    [result.audio.buffer]
-  );
+    // Generate speech
+    const result = await tts.generate(data.text, options);
+
+    // Send result back to main thread
+    self.postMessage(
+      {
+        type: "result",
+        audio: result.audio,
+        samplingRate: result.sampling_rate,
+        chunkIndex: data.chunkIndex,
+        totalChunks: data.totalChunks,
+      } as ResultMessage,
+      [result.audio.buffer]
+    );
+    
+    // Periodically clean up memory on mobile
+    if (isMobileDevice && data.chunkIndex > 0 && data.chunkIndex % 3 === 0) {
+      // Force garbage collection on some platforms
+      if (typeof global !== 'undefined' && global.gc) {
+        global.gc();
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to generate speech: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
 }

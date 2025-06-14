@@ -41,22 +41,36 @@ function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [modelLoadingProgress, setModelLoadingProgress] = useState(0);
+  const [modelLoadingMessage, setModelLoadingMessage] = useState("");
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationMessage, setGenerationMessage] = useState("");
   const [ttsReady, setTtsReady] = useState(false);
-  const [progressMessage, setProgressMessage] = useState("");
   const workerRef = useRef<Worker | null>(null);
   const audioBuffersRef = useRef<{ [key: number]: Float32Array }>({});
   const sampleRateRef = useRef<number>(24000);
   const totalChunksRef = useRef<number>(0);
   const completedChunksRef = useRef<number>(0);
   const [mode, setMode] = useState<"single" | "multi">("single");
+  const [mobileWarning, setMobileWarning] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Adjust chunk size based on device
+  const CHUNK_SIZE = isMobile ? 150 : 300;
+
+  useEffect(() => {
+    // Show mobile warning once
+    if (isMobile && !mobileWarning) {
+      setMobileWarning(true);
+    }
+  }, [mobileWarning]);
 
   // Warn user if input is very long
-  const LONG_TEXT_THRESHOLD = 2000; // characters
+  // More conservative threshold for mobile
+  const LONG_TEXT_THRESHOLD = isMobile ? 1000 : 2000;
   const [longTextWarning, setLongTextWarning] = useState(false);
   useEffect(() => {
     setLongTextWarning(inputText.length > LONG_TEXT_THRESHOLD);
-  }, [inputText]);
+  }, [inputText, LONG_TEXT_THRESHOLD]);
 
   type VoiceOption =
     | "am_fenrir"
@@ -100,12 +114,15 @@ function App() {
 
       switch (data.type) {
         case "progress":
-          if (data.message.includes("Model")) {
+          // Separate model loading progress from generation progress
+          if (data.message.includes("Model") || 
+              data.message.includes("Downloading") || 
+              data.message.includes("Initializing")) {
             setModelLoadingProgress(data.progress);
-            setProgressMessage(data.message);
+            setModelLoadingMessage(data.message);
           } else {
             setGenerationProgress(data.progress);
-            setProgressMessage(data.message);
+            setGenerationMessage(data.message);
           }
           break;
         case "result":
@@ -126,7 +143,7 @@ function App() {
           break;
         case "error":
           console.error("Worker error:", data.message);
-          alert(`Error in TTS processing: ${data.message}`);
+          setLoadError(data.message);
           setIsLoading(false);
           break;
         default:
@@ -138,12 +155,13 @@ function App() {
     worker.postMessage({
       type: "init",
       modelId: "onnx-community/Kokoro-82M-v1.0-ONNX",
-      dtype: "q8",
+      dtype: isMobile ? "q4" : "q8", // Lower precision for mobile
       device: "wasm",
+      isMobile: isMobile, // Pass mobile flag to worker
     });
 
     setIsLoading(true);
-    setProgressMessage("Initializing TTS model...");
+    setModelLoadingMessage("Initializing TTS model...");
 
     // Clean up worker on component unmount
     return () => {
@@ -296,6 +314,7 @@ function App() {
     }
 
     setIsLoading(true);
+    setLoadError(null);
     setAudioUrl(null);
     setGenerationProgress(0.01); // Start progress bar immediately
     setParseErrors([]);
@@ -312,11 +331,26 @@ function App() {
         alert("No valid text segments found to synthesize.");
         return;
       }
+
+      // On mobile, use smaller chunks
       let allChunks: { voice: VoiceOption; text: string }[] = [];
       for (const seg of segments) {
-        const splits = splitTextAtBreaks(seg.text);
+        // Use mobile-optimized chunk size
+        const splits = splitTextAtBreaks(seg.text, CHUNK_SIZE);
         for (const chunk of splits) {
           allChunks.push({ voice: seg.voice, text: chunk });
+        }
+      }
+
+      // For mobile devices with very long texts, warn and potentially limit
+      if (isMobile && allChunks.length > 10) {
+        const proceed = window.confirm(
+          `This text will be split into ${allChunks.length} chunks, which may cause performance issues on mobile devices. Continue anyway?`
+        );
+
+        if (!proceed) {
+          setIsLoading(false);
+          return;
         }
       }
       if (debugLogs) console.log("[TTS] All chunks for synthesis:", allChunks);
@@ -326,29 +360,60 @@ function App() {
       totalChunksRef.current = allChunks.length;
       completedChunksRef.current = 0;
 
-      // Phase 3: Send chunks to worker for processing
-      for (let i = 0; i < allChunks.length; i++) {
-        const { voice, text } = allChunks[i];
-        workerRef.current.postMessage({
-          type: "generate",
-          text,
-          voice,
-          chunkIndex: i,
-          totalChunks: allChunks.length,
-        });
-      }
+      // Mobile optimization: Process chunks in smaller batches to avoid memory issues
+      const processChunks = async (startIdx: number, batchSize: number) => {
+        const endIdx = Math.min(startIdx + batchSize, allChunks.length);
 
-      // Processing will continue in worker message handler
+        for (let i = startIdx; i < endIdx; i++) {
+          const { voice, text } = allChunks[i];
+          workerRef.current?.postMessage({
+            type: "generate",
+            text,
+            voice,
+            chunkIndex: i,
+            totalChunks: allChunks.length,
+          });
+
+          // On mobile, add a small delay between sending chunks to avoid overloading
+          if (isMobile && i < endIdx - 1) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+      };
+
+      // Process initial batch (all for desktop, smaller batch for mobile)
+      const initialBatchSize = isMobile ? 3 : allChunks.length;
+      await processChunks(0, initialBatchSize);
+
+      // For mobile, set up batch processing for remaining chunks
+      if (isMobile && allChunks.length > initialBatchSize) {
+        let currentIdx = initialBatchSize;
+
+        // Set up an interval to check when we can process more chunks
+        const processingInterval = setInterval(() => {
+          // If we've received results for at least half of what we've sent, send more
+          if (
+            completedChunksRef.current >= currentIdx / 2 &&
+            currentIdx < allChunks.length
+          ) {
+            processChunks(currentIdx, 2); // Process 2 more chunks
+            currentIdx += 2;
+          }
+
+          // Stop the interval when all chunks are being processed
+          if (currentIdx >= allChunks.length) {
+            clearInterval(processingInterval);
+          }
+        }, 1000);
+      }
     } catch (error: unknown) {
       const ttsError = error as TTSError;
       const errorMessage = ttsError.message || "Unknown error occurred";
       console.error("Error generating TTS:", ttsError);
-      alert(
-        `Error generating TTS: ${errorMessage}. Please check the console for details.`
-      );
+      setLoadError(`Error generating TTS: ${errorMessage}`);
       setIsLoading(false);
     }
-  }, [inputText, ttsReady, selectedVoice, debugLogs]);
+  }, [inputText, ttsReady, selectedVoice, debugLogs, CHUNK_SIZE]);
 
   // Helper function to convert Float32 samples to Int16 samples
   const float32ToInt16 = (buffer: Float32Array): Int16Array => {
@@ -376,6 +441,33 @@ function App() {
           <Title level={2} style={{ textAlign: "center", margin: 0 }}>
             Neuro TTS
           </Title>
+
+          {/* Mobile warning banner */}
+          {isMobile && mobileWarning && (
+            <Alert
+              message="Mobile Device Detected"
+              description="For best performance, use shorter texts and avoid multi-voice mode with many voice changes. The app has been optimized for mobile, but may still be slower than on desktop."
+              type="info"
+              showIcon
+              closable
+              onClose={() => setMobileWarning(false)}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+          
+          {/* Error display */}
+          {loadError && (
+            <Alert
+              message="Error"
+              description={loadError}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setLoadError(null)}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           {/* Mode Toggle */}
           <Radio.Group
             value={mode}
@@ -387,18 +479,17 @@ function App() {
             <Radio.Button value="single">Single Voice</Radio.Button>
             <Radio.Button value="multi">Multi-Voice</Radio.Button>
           </Radio.Group>
-          {/* Model Loading Progress */}
-          {(isLoading || !ttsReady) && (
+          
+          {/* Model Loading Progress - only show when model is loading */}
+          {(!ttsReady && modelLoadingProgress < 1) && (
             <div style={{ width: "100%" }}>
               <Typography.Text
                 style={{ display: "block", marginBottom: "8px" }}
               >
-                {progressMessage ||
+                {modelLoadingMessage ||
                   (modelLoadingProgress < 0.9
                     ? "Downloading Model"
-                    : modelLoadingProgress < 1
-                    ? "Initializing Model"
-                    : "Finalizing")}
+                    : "Initializing Model")}
               </Typography.Text>
               <Progress
                 percent={Math.min(100, Math.round(modelLoadingProgress * 100))}
@@ -414,17 +505,18 @@ function App() {
               value={selectedVoice}
               onChange={(value) => setSelectedVoice(value as VoiceOption)}
               style={{ width: "100%" }}
-            >
-              {voiceData
+              // Limit displayed voices on mobile to reduce dropdown size
+              options={voiceData
                 .filter((voice) =>
-                  ["A", "B", "C"].includes(voice.overallGrade.charAt(0))
+                  isMobile 
+                    ? ["A", "B"].includes(voice.overallGrade.charAt(0)) // Only A and B voices on mobile
+                    : ["A", "B", "C"].includes(voice.overallGrade.charAt(0))
                 )
-                .map((voice) => (
-                  <Select.Option key={voice.name} value={voice.name}>
-                    {voice.displayName}
-                  </Select.Option>
-                ))}
-            </Select>
+                .map((voice) => ({
+                  label: voice.displayName,
+                  value: voice.name,
+                }))}
+            />
           )}
 
           {/* Multi-voice help in multi mode */}
@@ -446,6 +538,7 @@ function App() {
                   How to use multi-voice? (hover for help)
                 </Typography.Text>
               </Tooltip>
+              
               {/* Error display for parse errors */}
               {parseErrors.length > 0 && (
                 <div
@@ -464,73 +557,91 @@ function App() {
                   </Typography.Text>
                 </div>
               )}
-              <Collapse style={{ margin: "12px 0" }} bordered={false}>
-                <Collapse.Panel header="How to use Neuro TTS" key="2">
-                  <ol style={{ paddingLeft: 18, margin: 0 }}>
-                    <li>
-                      Choose <b>Single Voice</b> or <b>Multi-Voice</b> mode
-                      above.
-                    </li>
-                    <li>
-                      In <b>Single Voice</b> mode, select a voice and enter your
-                      text.
-                    </li>
-                    <li>
-                      In <b>Multi-Voice</b> mode, use <code>[VoiceName]</code>{" "}
-                      tags to switch voices mid-text. See the available tags
-                      below.
-                    </li>
-                    <li>
-                      Click <b>Generate</b> to synthesize speech. Progress will
-                      be shown.
-                    </li>
-                    <li>Listen to the result or download the WAV file.</li>
-                  </ol>
-                  <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                    All processing is local in your browser. For best results,
-                    use short sentences and check the available voice tags.
-                  </Typography.Text>
-                </Collapse.Panel>
-              </Collapse>
-              <Collapse style={{ marginBottom: 8 }} bordered={false}>
-                <Collapse.Panel header="Show Available Voice Tags" key="1">
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(120px, 1fr))",
-                      gap: 8,
-                      maxHeight: 160,
-                      overflowY: "auto",
-                      background: "#fafafa",
-                      borderRadius: 6,
-                      border: "1px solid #eee",
-                      padding: 8,
-                    }}
-                  >
-                    {voiceData.map((v) => (
+              
+              {/* Simplified collapsible sections on mobile */}
+              {isMobile ? (
+                <Collapse style={{ margin: "12px 0" }} bordered={false}>
+                  <Collapse.Panel header="Help & Voice Tags" key="mobile">
+                    <Typography.Text strong>How to use:</Typography.Text>
+                    <ul style={{ paddingLeft: 18, margin: "8px 0" }}>
+                      <li>Enter text with voice tags like [Felix] or [Sarah]</li>
+                      <li>Keep sentences short for better performance</li>
+                      <li>Available tags: Felix, Sarah, Emily, Daniel, etc.</li>
+                    </ul>
+                  </Collapse.Panel>
+                </Collapse>
+              ) : (
+                // Desktop view with separate collapsible sections
+                <>
+                  <Collapse style={{ margin: "12px 0" }} bordered={false}>
+                    <Collapse.Panel header="How to use Neuro TTS" key="2">
+                      <ol style={{ paddingLeft: 18, margin: 0 }}>
+                        <li>
+                          Choose <b>Single Voice</b> or <b>Multi-Voice</b> mode
+                          above.
+                        </li>
+                        <li>
+                          In <b>Single Voice</b> mode, select a voice and enter your
+                          text.
+                        </li>
+                        <li>
+                          In <b>Multi-Voice</b> mode, use <code>[VoiceName]</code>{" "}
+                          tags to switch voices mid-text. See the available tags
+                          below.
+                        </li>
+                        <li>
+                          Click <b>Generate</b> to synthesize speech. Progress will
+                          be shown.
+                        </li>
+                        <li>Listen to the result or download the WAV file.</li>
+                      </ol>
+                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                        All processing is local in your browser. For best results,
+                        use short sentences and check the available voice tags.
+                      </Typography.Text>
+                    </Collapse.Panel>
+                  </Collapse>
+                  <Collapse style={{ marginBottom: 8 }} bordered={false}>
+                    <Collapse.Panel header="Show Available Voice Tags" key="1">
                       <div
-                        key={v.name}
-                        style={{ fontSize: 13, lineHeight: 1.3 }}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(120px, 1fr))",
+                          gap: 8,
+                          maxHeight: 160,
+                          overflowY: "auto",
+                          background: "#fafafa",
+                          borderRadius: 6,
+                          border: "1px solid #eee",
+                          padding: 8,
+                        }}
                       >
-                        <code
-                          style={{
-                            background: "#f0f0f0",
-                            borderRadius: 4,
-                            padding: "1px 4px",
-                            marginRight: 4,
-                          }}
-                        >
-                          [{v.displayName.split(" ")[0]}]
-                        </code>
-                        <span>
-                          {v.displayName.replace(/\(.+\)/, "").trim()}
-                        </span>
+                        {voiceData.map((v) => (
+                          <div
+                            key={v.name}
+                            style={{ fontSize: 13, lineHeight: 1.3 }}
+                          >
+                            <code
+                              style={{
+                                background: "#f0f0f0",
+                                borderRadius: 4,
+                                padding: "1px 4px",
+                                marginRight: 4,
+                              }}
+                            >
+                              [{v.displayName.split(" ")[0]}]
+                            </code>
+                            <span>
+                              {v.displayName.replace(/\(.+\)/, "").trim()}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </Collapse.Panel>
-              </Collapse>
+                    </Collapse.Panel>
+                  </Collapse>
+                </>
+              )}
             </>
           )}
 
@@ -554,7 +665,7 @@ function App() {
           )}
 
           <TextArea
-            rows={6}
+            rows={isMobile ? 4 : 6}
             value={inputText}
             onChange={handleInputChange}
             placeholder={
@@ -569,6 +680,8 @@ function App() {
             onClick={generateTTS}
             disabled={isLoading || !ttsReady}
             loading={isLoading}
+            size={isMobile ? "large" : "middle"}
+            block={isMobile}
           >
             {isLoading
               ? "Generating..."
@@ -577,13 +690,13 @@ function App() {
               : "Loading Model..."}
           </Button>
 
-          {/* Generation Progress */}
+          {/* Generation Progress - only show during active generation */}
           {isLoading && ttsReady && (
             <div style={{ width: "100%" }}>
               <Typography.Text
                 style={{ display: "block", marginBottom: "8px" }}
               >
-                {progressMessage || "Generating Audio"}
+                {generationMessage || "Generating Audio"}
               </Typography.Text>
               <Progress
                 percent={Math.min(100, Math.round(generationProgress * 100))}
