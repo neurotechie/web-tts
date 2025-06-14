@@ -1,16 +1,22 @@
 {
-  "name": "web-tts",
-  "private": true,
-  "version": "0.0.0",
+  "name": "kokoro-tts-cli",
+  "private": false,
+  "version": "1.0.0",
+  "description": "Command-line interface for text-to-speech conversion using Kokoro TTS",
   "type": "module",
+  "bin": {
+    "tts": "./cli-tts.js"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "install-global": "npm install -g ."
   },
   "dependencies": {
     "antd": "^5.24.6",
+    "commander": "^14.0.0",
     "kokoro-js": "^1.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
