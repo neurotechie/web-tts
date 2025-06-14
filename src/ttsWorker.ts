@@ -73,10 +73,10 @@ async function initTTS(data: InitMessage) {
     progress: 0,
     message: "Starting model loading",
   } as ProgressMessage);
-  
+
   // Store mobile status for optimizations
   isMobileDevice = data.isMobile ?? false;
-  
+
   // Different model options for mobile
   const modelParams = {
     dtype: isMobileDevice ? "q4" : data.dtype, // Lower precision for mobile
@@ -169,15 +169,19 @@ async function generateTTS(data: GenerateMessage) {
       } as ResultMessage,
       [result.audio.buffer]
     );
-    
+
     // Periodically clean up memory on mobile
     if (isMobileDevice && data.chunkIndex > 0 && data.chunkIndex % 3 === 0) {
       // Force garbage collection on some platforms
-      if (typeof global !== 'undefined' && global.gc) {
+      if (typeof global !== "undefined" && global.gc) {
         global.gc();
       }
     }
   } catch (error) {
-    throw new Error(`Failed to generate speech: ${error instanceof Error ? error.message : "Unknown error"}`);
+    throw new Error(
+      `Failed to generate speech: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   }
 }

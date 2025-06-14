@@ -25,9 +25,10 @@ interface TTSError extends Error {
 }
 
 // Mobile detection
-const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-  navigator.userAgent
-);
+const isMobile =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 
 // Web Worker
 const createTTSWorker = () => {
@@ -115,9 +116,11 @@ function App() {
       switch (data.type) {
         case "progress":
           // Separate model loading progress from generation progress
-          if (data.message.includes("Model") || 
-              data.message.includes("Downloading") || 
-              data.message.includes("Initializing")) {
+          if (
+            data.message.includes("Model") ||
+            data.message.includes("Downloading") ||
+            data.message.includes("Initializing")
+          ) {
             setModelLoadingProgress(data.progress);
             setModelLoadingMessage(data.message);
           } else {
@@ -454,7 +457,7 @@ function App() {
               style={{ marginBottom: 16 }}
             />
           )}
-          
+
           {/* Error display */}
           {loadError && (
             <Alert
@@ -479,9 +482,9 @@ function App() {
             <Radio.Button value="single">Single Voice</Radio.Button>
             <Radio.Button value="multi">Multi-Voice</Radio.Button>
           </Radio.Group>
-          
+
           {/* Model Loading Progress - only show when model is loading */}
-          {(!ttsReady && modelLoadingProgress < 1) && (
+          {!ttsReady && modelLoadingProgress < 1 && (
             <div style={{ width: "100%" }}>
               <Typography.Text
                 style={{ display: "block", marginBottom: "8px" }}
@@ -508,7 +511,7 @@ function App() {
               // Limit displayed voices on mobile to reduce dropdown size
               options={voiceData
                 .filter((voice) =>
-                  isMobile 
+                  isMobile
                     ? ["A", "B"].includes(voice.overallGrade.charAt(0)) // Only A and B voices on mobile
                     : ["A", "B", "C"].includes(voice.overallGrade.charAt(0))
                 )
@@ -538,7 +541,7 @@ function App() {
                   How to use multi-voice? (hover for help)
                 </Typography.Text>
               </Tooltip>
-              
+
               {/* Error display for parse errors */}
               {parseErrors.length > 0 && (
                 <div
@@ -557,14 +560,16 @@ function App() {
                   </Typography.Text>
                 </div>
               )}
-              
+
               {/* Simplified collapsible sections on mobile */}
               {isMobile ? (
                 <Collapse style={{ margin: "12px 0" }} bordered={false}>
                   <Collapse.Panel header="Help & Voice Tags" key="mobile">
                     <Typography.Text strong>How to use:</Typography.Text>
                     <ul style={{ paddingLeft: 18, margin: "8px 0" }}>
-                      <li>Enter text with voice tags like [Felix] or [Sarah]</li>
+                      <li>
+                        Enter text with voice tags like [Felix] or [Sarah]
+                      </li>
                       <li>Keep sentences short for better performance</li>
                       <li>Available tags: Felix, Sarah, Emily, Daniel, etc.</li>
                     </ul>
@@ -581,23 +586,27 @@ function App() {
                           above.
                         </li>
                         <li>
-                          In <b>Single Voice</b> mode, select a voice and enter your
-                          text.
+                          In <b>Single Voice</b> mode, select a voice and enter
+                          your text.
                         </li>
                         <li>
-                          In <b>Multi-Voice</b> mode, use <code>[VoiceName]</code>{" "}
-                          tags to switch voices mid-text. See the available tags
-                          below.
+                          In <b>Multi-Voice</b> mode, use{" "}
+                          <code>[VoiceName]</code> tags to switch voices
+                          mid-text. See the available tags below.
                         </li>
                         <li>
-                          Click <b>Generate</b> to synthesize speech. Progress will
-                          be shown.
+                          Click <b>Generate</b> to synthesize speech. Progress
+                          will be shown.
                         </li>
                         <li>Listen to the result or download the WAV file.</li>
                       </ol>
-                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                        All processing is local in your browser. For best results,
-                        use short sentences and check the available voice tags.
+                      <Typography.Text
+                        type="secondary"
+                        style={{ fontSize: 13 }}
+                      >
+                        All processing is local in your browser. For best
+                        results, use short sentences and check the available
+                        voice tags.
                       </Typography.Text>
                     </Collapse.Panel>
                   </Collapse>

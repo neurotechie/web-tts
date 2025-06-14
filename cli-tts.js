@@ -130,6 +130,19 @@ function parseMultiVoiceText(text, defaultVoice) {
   return { segments: result, errors };
 }
 
+// Helper: Calculate audio duration in seconds based on sample rate and data length
+const calculateDuration = (audioLength, sampleRate) => {
+  return audioLength / sampleRate;
+};
+
+// Helper: Get absolute path for output file
+const getAbsolutePath = (filePath) => {
+  if (path.isAbsolute(filePath)) {
+    return filePath;
+  }
+  return path.resolve(process.cwd(), filePath);
+};
+
 // Setup command line options
 program
   .name("cli-tts")
@@ -151,6 +164,8 @@ program
     "300"
   )
   .option("-d, --debug", "Enable debug output")
+  .option("-j, --json", "Output JSON response instead of text")
+  .option("--include-metadata", "Include additional metadata in JSON output")
   .parse(process.argv);
 
 const opts = program.opts();
@@ -159,11 +174,18 @@ const opts = program.opts();
 async function main() {
   // List voices and exit if requested
   if (opts.listVoices) {
-    console.log("Available voices:");
-    voiceData.forEach((v) => {
-      console.log(`  ${v.name} - ${v.displayName}`);
-    });
-    console.log("\nIn multi-voice mode, use tags like [Felix], [Sarah], etc.");
+    if (opts.json) {
+      console.log(JSON.stringify({ 
+        status: "success", 
+        voices: voiceData 
+      }));
+    } else {
+      console.log("Available voices:");
+      voiceData.forEach((v) => {
+        console.log(`  ${v.name} - ${v.displayName}`);
+      });
+      console.log("\nIn multi-voice mode, use tags like [Felix], [Sarah], etc.");
+    }
     return;
   }
 
@@ -175,7 +197,14 @@ async function main() {
     try {
       text = await fs.readFile(opts.file, "utf-8");
     } catch (error) {
-      console.error(`Error reading file: ${error.message}`);
+      if (opts.json) {
+        console.log(JSON.stringify({
+          status: "error",
+          error: `Error reading file: ${error.message}`
+        }));
+      } else {
+        console.error(`Error reading file: ${error.message}`);
+      }
       return;
     }
   } else {
@@ -191,35 +220,55 @@ async function main() {
         text += line + "\n";
       }
     } else {
-      console.error(
-        "Error: No text input provided. Use --text, --file options or pipe text."
-      );
-      program.help();
+      if (opts.json) {
+        console.log(JSON.stringify({
+          status: "error",
+          error: "No text input provided. Use --text, --file options or pipe text."
+        }));
+      } else {
+        console.error(
+          "Error: No text input provided. Use --text, --file options or pipe text."
+        );
+        program.help();
+      }
       return;
     }
   }
 
   if (!text.trim()) {
-    console.error("Error: Empty text input.");
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: "error",
+        error: "Empty text input."
+      }));
+    } else {
+      console.error("Error: Empty text input.");
+    }
     return;
   }
 
-  if (opts.debug) {
+  if (opts.debug && !opts.json) {
     console.log(
       "Text to synthesize:",
       text.slice(0, 100) + (text.length > 100 ? "..." : "")
     );
   }
 
+  // Track start time for performance metrics
+  const startTime = Date.now();
+  
   // Initialize TTS
-  console.log("Initializing TTS model...");
+  if (!opts.json) {
+    console.log("Initializing TTS model...");
+  }
+  
   const tts = await KokoroTTS.from_pretrained(
     "onnx-community/Kokoro-82M-v1.0-ONNX",
     {
       dtype: "q8",
       device: "cpu",
       progress_callback: (progressInfo) => {
-        if ("progress" in progressInfo) {
+        if ("progress" in progressInfo && !opts.json) {
           const percent = Math.round(progressInfo.progress * 100);
           process.stdout.write(`\rDownloading model: ${percent}%`);
         }
@@ -227,24 +276,44 @@ async function main() {
     }
   );
 
-  console.log("\nModel loaded successfully!");
+  if (!opts.json) {
+    console.log("\nModel loaded successfully!");
+  }
 
   let allAudioChunks = [];
   let sampleRate = 24000; // Default sample rate
-
+  const processingErrors = [];
+  const processingWarnings = [];
+  
   try {
     // Parse input based on mode
     if (opts.multiVoice) {
-      console.log("Multi-voice mode enabled");
+      if (!opts.json) {
+        console.log("Multi-voice mode enabled");
+      }
+      
       const { segments, errors } = parseMultiVoiceText(text, opts.voice);
 
       if (errors.length > 0) {
-        console.log("Warnings:");
-        errors.forEach((err) => console.log(` - ${err}`));
+        errors.forEach(err => processingWarnings.push(err));
+        
+        if (!opts.json) {
+          console.log("Warnings:");
+          errors.forEach((err) => console.log(` - ${err}`));
+        }
       }
 
       if (segments.length === 0) {
-        console.error("Error: No valid text segments found to synthesize.");
+        const errorMsg = "No valid text segments found to synthesize.";
+        
+        if (opts.json) {
+          console.log(JSON.stringify({
+            status: "error",
+            error: errorMsg
+          }));
+        } else {
+          console.error(`Error: ${errorMsg}`);
+        }
         return;
       }
 
@@ -256,28 +325,39 @@ async function main() {
         }
       }
 
-      console.log(`Processing ${allChunks.length} text chunks...`);
+      if (!opts.json) {
+        console.log(`Processing ${allChunks.length} text chunks...`);
+      }
 
       // Process each chunk
       for (let i = 0; i < allChunks.length; i++) {
         const { voice, text } = allChunks[i];
-        process.stdout.write(
-          `\rGenerating chunk ${i + 1}/${allChunks.length}...`
-        );
+        if (!opts.json) {
+          process.stdout.write(
+            `\rGenerating chunk ${i + 1}/${allChunks.length}...`
+          );
+        }
 
         const result = await tts.generate(text, { voice });
         sampleRate = result.sampling_rate;
         allAudioChunks.push(result.audio);
       }
     } else {
-      console.log("Single voice mode with:", opts.voice);
+      if (!opts.json) {
+        console.log("Single voice mode with:", opts.voice);
+      }
+      
       const chunks = splitTextAtBreaks(text, parseInt(opts.chunkSize));
 
-      console.log(`Processing ${chunks.length} text chunks...`);
+      if (!opts.json) {
+        console.log(`Processing ${chunks.length} text chunks...`);
+      }
 
       // Process each chunk
       for (let i = 0; i < chunks.length; i++) {
-        process.stdout.write(`\rGenerating chunk ${i + 1}/${chunks.length}...`);
+        if (!opts.json) {
+          process.stdout.write(`\rGenerating chunk ${i + 1}/${chunks.length}...`);
+        }
 
         const result = await tts.generate(chunks[i], { voice: opts.voice });
         sampleRate = result.sampling_rate;
@@ -285,7 +365,9 @@ async function main() {
       }
     }
 
-    console.log("\nCombining audio chunks...");
+    if (!opts.json) {
+      console.log("\nCombining audio chunks...");
+    }
 
     // Concatenate all audio buffers
     const totalLength = allAudioChunks.reduce(
@@ -304,12 +386,61 @@ async function main() {
     outputWav.fromScratch(1, sampleRate, "16", float32ToInt16(joined));
     const wavBuffer = outputWav.toBuffer();
 
+    // Calculate duration
+    const duration = calculateDuration(joined.length, sampleRate);
+    
+    // Calculate processing time
+    const processingTime = (Date.now() - startTime) / 1000;
+
+    // Get absolute path
+    const outputPath = getAbsolutePath(opts.output);
+    
     // Write to file
     await fs.writeFile(opts.output, Buffer.from(wavBuffer));
-    console.log(`Audio successfully saved to: ${opts.output}`);
+    
+    // Output response based on format
+    if (opts.json) {
+      const response = {
+        status: "success",
+        outputFile: outputPath,
+        duration: parseFloat(duration.toFixed(2))
+      };
+      
+      // Add optional metadata if requested
+      if (opts.includeMetadata) {
+        response.metadata = {
+          voice: opts.multiVoice ? "multiple" : opts.voice,
+          wordCount: text.split(/\s+/).length,
+          processingTime: parseFloat(processingTime.toFixed(2)),
+          sampleRate: sampleRate,
+          fileSize: wavBuffer.length,
+          warnings: processingWarnings.length > 0 ? processingWarnings : undefined
+        };
+      }
+      
+      console.log(JSON.stringify(response));
+    } else {
+      console.log(`Audio successfully saved to: ${opts.output}`);
+    }
   } catch (error) {
-    console.error(`Error generating TTS: ${error.message}`);
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: "error",
+        error: `Failed to generate speech: ${error.message}`
+      }));
+    } else {
+      console.error(`Error generating TTS: ${error.message}`);
+    }
   }
 }
 
-main().catch((err) => console.error("Unhandled error:", err));
+main().catch((err) => {
+  if (opts.json) {
+    console.log(JSON.stringify({
+      status: "error",
+      error: `Unhandled error: ${err.message}`
+    }));
+  } else {
+    console.error("Unhandled error:", err);
+  }
+});
